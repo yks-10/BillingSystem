@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Create Bill - Billing System{% endblock %}
+
+{% block content %}
+<h2>Create New Bill</h2>
+
+<div id="error-message" class="alert alert-error" style="display: none;"></div>
+<div id="success-message" class="alert alert-success" style="display: none;"></div>
+
+<form id="billing-form">
+    <div class="two-column">
+        <!-- Left Column: Billing Details -->
+        <div>
+            <h3>Billing Details</h3>
+            
+            <div class="form-group">
+                <label for="customer_email">Customer Email *</label>
+                <input type="email" id="customer_email" name="customer_email" required>
+            </div>
+            
+            <h4>Products</h4>
+            <div id="products-container">
+                <div class="product-item form-group" style="padding: 15px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">
+                    <label>Select Product</label>
+                    <select name="product_id[]" required>
+                        <option value="">-- Select Product --</option>
+                    </select>
+                    
+                    <label style="margin-top: 10px;">Quantity</label>
+                    <input type="number" name="quantity[]" min="1" value="1" required>
+                </div>
+            </div>
+            
+            <button type="button" onclick="addProduct()" class="secondary">Add New Product</button>
+            
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="paid_amount">Paid Amount (₹) *</label>
+                <input type="number" id="paid_amount" name="paid_amount" step="0.01" min="0" required>
+            </div>
+        </div>
+        
+        <!-- Right Column: Denominations -->
+        <div class="separator">
+            <h3>Available Denominations in Shop</h3>
+            <p style="color: #666; margin-bottom: 15px;">Enter the count of each denomination available in the shop</p>
+            
+            <div id="denominations-container">
+                <div class="form-group">
+                    <label>₹2000</label>
+                    <input type="number" name="denom_2000" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>₹500</label>
+                    <input type="number" name="denom_500" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>₹200</label>
+                    <input type="number" name="denom_200" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>₹100</label>
+                    <input type="number" name="denom_100" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>₹50</label>
+                    <input type="number" name="denom_50" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>₹20</label>
+                    <input type="number" name="denom_20" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>₹10</label>
+                    <input type="number" name="denom_10" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>₹5</label>
+                    <input type="number" name="denom_5" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>₹2</label>
+                    <input type="number" name="denom_2" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>₹1</label>
+                    <input type="number" name="denom_1" min="0" value="0">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div style="margin-top: 30px;">
+        <button type="submit">Generate Bill</button>
+        <button type="button" onclick="window.location.href='/orders'" class="secondary">View Order History</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let productCount = 1;
+    let availableProducts = [];
+    let availableDenominations = {};
+    
+    // Load products and denominations when page loads
+    async function loadInitialData() {
+        try {
+            // Load products
+            const productsResponse = await fetch('/api/products/');
+            if (productsResponse.ok) {
+                availableProducts = await productsResponse.json();
+                populateProductDropdowns();
+            }
+            
+            // Load denominations
+            const denomsResponse = await fetch('/api/denominations/');
+            if (denomsResponse.ok) {
+                const denoms = await denomsResponse.json();
+                denoms.forEach(denom => {
+                    availableDenominations[denom.value] = denom.available_count;
+                    const input = document.querySelector(`input[name="denom_${denom.value}"]`);
+                    if (input) {
+                        input.value = denom.available_count;
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error loading initial data:', error);
+        }
+    }
+    
+    function populateProductDropdowns() {
+        const selects = document.querySelectorAll('select[name="product_id[]"]');
+        selects.forEach(select => {
+            // Clear existing options except the first one
+            select.innerHTML = '<option value="">-- Select Product --</option>';
+            
+            // Add product options
+            availableProducts.forEach(product => {
+                const option = document.createElement('option');
+                option.value = product.product_id;
+                option.textContent = `${product.product_id} - ${product.name} (₹${product.price}) - Stock: ${product.available_stock}`;
+                select.appendChild(option);
+            });
+        });
+    }
+    
+    function addProduct() {
+        productCount++;
+        const container = document.getElementById('products-container');
+        const productItem = document.createElement('div');
+        productItem.className = 'product-item form-group';
+        productItem.style.cssText = 'padding: 15px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px; position: relative;';
+        productItem.innerHTML = `
+            <button type="button" onclick="this.parentElement.remove()" class="danger" style="position: absolute; right: 15px; top: 15px; padding: 5px 10px;">Remove</button>
+            
+            <label>Select Product</label>
+            <select name="product_id[]" required>
+                <option value="">-- Select Product --</option>
+            </select>
+            
+            <label style="margin-top: 10px;">Quantity</label>
+            <input type="number" name="quantity[]" min="1" value="1" required>
+        `;
+        container.appendChild(productItem);
+        
+        // Populate the new dropdown
+        populateProductDropdowns();
+    }
+    
+    async function updateDenominations(denominations) {
+        // Update denominations in the database
+        for (const [value, count] of Object.entries(denominations)) {
+            try {
+                const response = await fetch('/api/denominations/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ value: parseInt(value), available_count: count })
+                });
+            } catch (error) {
+                console.error('Error updating denomination:', error);
+            }
+        }
+    }
+    
+    document.getElementById('billing-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const errorDiv = document.getElementById('error-message');
+        const successDiv = document.getElementById('success-message');
+        errorDiv.style.display = 'none';
+        successDiv.style.display = 'none';
+        
+        // Collect form data
+        const formData = new FormData(e.target);
+        const customerEmail = formData.get('customer_email');
+        const paidAmount = parseFloat(formData.get('paid_amount'));
+        
+        // Collect products
+        const productIds = formData.getAll('product_id[]');
+        const quantities = formData.getAll('quantity[]');
+        const items = productIds.map((id, index) => ({
+            product_id: id,
+            quantity: parseInt(quantities[index])
+        }));
+        
+        // Collect denominations and update them first
+        const denominations = {
+            2000: parseInt(formData.get('denom_2000') || 0),
+            500: parseInt(formData.get('denom_500') || 0),
+            200: parseInt(formData.get('denom_200') || 0),
+            100: parseInt(formData.get('denom_100') || 0),
+            50: parseInt(formData.get('denom_50') || 0),
+            20: parseInt(formData.get('denom_20') || 0),
+            10: parseInt(formData.get('denom_10') || 0),
+            5: parseInt(formData.get('denom_5') || 0),
+            2: parseInt(formData.get('denom_2') || 0),
+            1: parseInt(formData.get('denom_1') || 0)
+        };
+        
+        // Update denominations first
+        for (const [value, count] of Object.entries(denominations)) {
+            try {
+                await fetch(`/api/denominations/value/${value}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ available_count: count })
+                });
+            } catch (error) {
+                console.log('Creating denomination:', value);
+                await fetch('/api/denominations/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ value: parseInt(value), available_count: count })
+                });
+            }
+        }
+        
+        // Submit billing request
+        try {
+            const response = await fetch('/api/billing/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customer_email: customerEmail,
+                    items: items,
+                    paid_amount: paidAmount
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                // Redirect to invoice page
+                window.location.href = `/invoice/${result.order_id}`;
+            } else {
+                const error = await response.json();
+                errorDiv.textContent = error.detail || 'Error creating bill';
+                errorDiv.style.display = 'block';
+            }
+        } catch (error) {
+            errorDiv.textContent = 'Network error: ' + error.message;
+            errorDiv.style.display = 'block';
+        }
+    });
+    
+    // Load data when page loads
+    loadInitialData();
+</script>
+{% endblock %}

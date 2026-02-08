@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Products - Billing System{% endblock %}
+
+{% block content %}
+<h2>Products Management</h2>
+
+<div id="error-message" class="alert alert-error" style="display: none;"></div>
+<div id="success-message" class="alert alert-success" style="display: none;"></div>
+
+<div style="margin-bottom: 30px;">
+    <h3>Add New Product</h3>
+    <form id="add-product-form" style="max-width: 600px;">
+        <div class="form-group">
+            <label for="product_id">Product ID *</label>
+            <input type="text" id="product_id" name="product_id" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="name">Product Name *</label>
+            <input type="text" id="name" name="name" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="price">Price (₹) *</label>
+            <input type="number" id="price" name="price" step="0.01" min="0" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="tax_percentage">Tax Percentage (%) *</label>
+            <input type="number" id="tax_percentage" name="tax_percentage" step="0.01" min="0" max="100" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="available_stock">Available Stock *</label>
+            <input type="number" id="available_stock" name="available_stock" min="0" required>
+        </div>
+        
+        <button type="submit">Add Product</button>
+        <button type="button" onclick="window.location.href='/'" class="secondary">Back to Billing</button>
+    </form>
+</div>
+
+<h3>Existing Products</h3>
+<div id="products-list">
+    <p>Loading products...</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let products = [];
+    
+    async function loadProducts() {
+        try {
+            const response = await fetch('/api/products/');
+            if (response.ok) {
+                products = await response.json();
+                displayProducts();
+            }
+        } catch (error) {
+            console.error('Error loading products:', error);
+            document.getElementById('products-list').innerHTML = '<p>Error loading products.</p>';
+        }
+    }
+    
+    function displayProducts() {
+        const container = document.getElementById('products-list');
+        
+        if (products.length === 0) {
+            container.innerHTML = '<p>No products found.</p>';
+            return;
+        }
+        
+        let html = '<table><thead><tr>';
+        html += '<th>Product ID</th>';
+        html += '<th>Name</th>';
+        html += '<th>Price (₹)</th>';
+        html += '<th>Tax (%)</th>';
+        html += '<th>Stock</th>';
+        html += '<th>Actions</th>';
+        html += '</tr></thead><tbody>';
+        
+        products.forEach(product => {
+            html += '<tr>';
+            html += `<td>${product.product_id}</td>`;
+            html += `<td>${product.name}</td>`;
+            html += `<td>₹${product.price.toFixed(2)}</td>`;
+            html += `<td>${product.tax_percentage}%</td>`;
+            html += `<td>${product.available_stock}</td>`;
+            html += `<td><button class="danger" onclick="deleteProduct('${product.product_id}')">Delete</button></td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+    
+    async function deleteProduct(productId) {
+        if (!confirm(`Are you sure you want to delete product ${productId}?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/products/${productId}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                showSuccess(`Product ${productId} deleted successfully`);
+                loadProducts();
+            } else {
+                const error = await response.json();
+                showError(error.detail || 'Error deleting product');
+            }
+        } catch (error) {
+            showError('Network error: ' + error.message);
+        }
+    }
+    
+    document.getElementById('add-product-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const productData = {
+            product_id: formData.get('product_id'),
+            name: formData.get('name'),
+            price: parseFloat(formData.get('price')),
+            tax_percentage: parseFloat(formData.get('tax_percentage')),
+            available_stock: parseInt(formData.get('available_stock'))
+        };
+        
+        try {
+            const response = await fetch('/api/products/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(productData)
+            });
+            
+            if (response.ok) {
+                showSuccess('Product added successfully!');
+                e.target.reset();
+                loadProducts();
+            } else {
+                const error = await response.json();
+                showError(error.detail || 'Error adding product');
+            }
+        } catch (error) {
+            showError('Network error: ' + error.message);
+        }
+    });
+    
+    function showSuccess(message) {
+        const successDiv = document.getElementById('success-message');
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.style.display = 'none';
+        successDiv.textContent = message;
+        successDiv.style.display = 'block';
+        setTimeout(() => successDiv.style.display = 'none', 3000);
+    }
+    
+    function showError(message) {
+        const successDiv = document.getElementById('success-message');
+        const errorDiv = document.getElementById('error-message');
+        successDiv.style.display = 'none';
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+    }
+    
+    // Load products on page load
+    loadProducts();
+</script>
+{% endblock %}

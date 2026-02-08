@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Order History - Billing System{% endblock %}
+
+{% block content %}
+<h2>Order History</h2>
+
+<div class="form-group" style="max-width: 500px;">
+    <label for="search-email">Search by Customer Email</label>
+    <input type="email" id="search-email" placeholder="Enter customer email">
+    <button onclick="searchOrders()" style="margin-top: 10px;">Search</button>
+    <button onclick="loadAllOrders()" class="secondary" style="margin-top: 10px;">Show All</button>
+</div>
+
+<div id="orders-container">
+    <p>Loading orders...</p>
+</div>
+
+<div id="order-details-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: relative; max-width: 900px; margin: 50px auto; background: white; border-radius: 8px; padding: 30px; max-height: 80vh; overflow-y: auto;">
+        <button onclick="closeModal()" style="position: absolute; top: 20px; right: 20px;" class="danger">Close</button>
+        
+        <h2>Order Details</h2>
+        <div id="order-details-content"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let allOrders = [];
+    
+    async function loadAllOrders() {
+        try {
+            // Since we don't have an endpoint to get all orders, we'll need to search by email
+            // For now, we'll just clear the search
+            document.getElementById('search-email').value = '';
+            document.getElementById('orders-container').innerHTML = '<p>Please enter a customer email to search for orders.</p>';
+        } catch (error) {
+            document.getElementById('orders-container').innerHTML = '<p class="alert alert-error">Error loading orders: ' + error.message + '</p>';
+        }
+    }
+    
+    async function searchOrders() {
+        const email = document.getElementById('search-email').value;
+        if (!email) {
+            alert('Please enter a customer email');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/orders/customer/${encodeURIComponent(email)}`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch orders');
+            }
+            
+            const orders = await response.json();
+            allOrders = orders;
+            displayOrders(orders);
+        } catch (error) {
+            document.getElementById('orders-container').innerHTML = '<p class="alert alert-error">Error loading orders: ' + error.message + '</p>';
+        }
+    }
+    
+    function displayOrders(orders) {
+        const container = document.getElementById('orders-container');
+        
+        if (orders.length === 0) {
+            container.innerHTML = '<p>No orders found for this customer.</p>';
+            return;
+        }
+        
+        let html = '<table><thead><tr><th>Order ID</th><th>Date</th><th>Total Amount</th><th>Items</th><th>Actions</th></tr></thead><tbody>';
+        
+        orders.forEach(order => {
+            const date = new Date(order.created_at).toLocaleString();
+            const itemCount = order.items.length;
+            
+            html += `
+                <tr>
+                    <td>#${order.id}</td>
+                    <td>${date}</td>
+                    <td>₹${order.total_amount.toFixed(2)}</td>
+                    <td>${itemCount} item(s)</td>
+                    <td>
+                        <button onclick="viewOrderDetails(${order.id})" class="secondary">View Details</button>
+                        <button onclick="window.location.href='/invoice/${order.id}'" class="secondary">View Invoice</button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+    
+    async function viewOrderDetails(orderId) {
+        const order = allOrders.find(o => o.id === orderId);
+        if (!order) {
+            alert('Order not found');
+            return;
+        }
+        
+        let itemsHtml = '<table><thead><tr><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Tax</th><th>Total</th></tr></thead><tbody>';
+        
+        order.items.forEach(item => {
+            itemsHtml += `
+                <tr>
+                    <td>${item.product_name}</td>
+                    <td>${item.quantity}</td>
+                    <td>₹${item.unit_price.toFixed(2)}</td>
+                    <td>₹${item.tax_amount.toFixed(2)}</td>
+                    <td>₹${item.total_price.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+        
+        itemsHtml += '</tbody></table>';
+        
+        const detailsHtml = `
+            <div style="margin: 20px 0;">
+                <p><strong>Order ID:</strong> #${order.id}</p>
+                <p><strong>Customer Email:</strong> ${order.customer_email}</p>
+                <p><strong>Date:</strong> ${new Date(order.created_at).toLocaleString()}</p>
+            </div>
+            
+            <h3>Items Purchased</h3>
+            ${itemsHtml}
+            
+            <div style="background-color: #f9f9f9; padding: 20px; margin-top: 20px; border-radius: 4px;">
+                <table style="width: 400px; margin-left: auto; border: none;">
+                    <tr style="background: none;">
+                        <td style="border: none;"><strong>Subtotal (without tax):</strong></td>
+                        <td style="border: none; text-align: right;">₹${order.total_without_tax.toFixed(2)}</td>
+                    </tr>
+                    <tr style="background: none;">
+                        <td style="border: none;"><strong>Total Tax:</strong></td>
+                        <td style="border: none; text-align: right;">₹${order.total_tax.toFixed(2)}</td>
+                    </tr>
+                    <tr style="background-color: #e0e0e0;">
+                        <td style="border: none; padding: 10px 0;"><strong>Grand Total:</strong></td>
+                        <td style="border: none; padding: 10px 0; text-align: right;"><strong>₹${order.total_amount.toFixed(2)}</strong></td>
+                    </tr>
+                    <tr style="background: none;">
+                        <td style="border: none;"><strong>Paid Amount:</strong></td>
+                        <td style="border: none; text-align: right;">₹${order.paid_amount.toFixed(2)}</td>
+                    </tr>
+                    <tr style="background-color: #d4edda;">
+                        <td style="border: none; padding: 10px 0;"><strong>Balance/Change:</strong></td>
+                        <td style="border: none; padding: 10px 0; text-align: right;"><strong>₹${order.balance_amount.toFixed(2)}</strong></td>
+                    </tr>
+                </table>
+            </div>
+        `;
+        
+        document.getElementById('order-details-content').innerHTML = detailsHtml;
+        document.getElementById('order-details-modal').style.display = 'block';
+    }
+    
+    function closeModal() {
+        document.getElementById('order-details-modal').style.display = 'none';
+    }
+    
+    // Initial load message
+    loadAllOrders();
+</script>
+{% endblock %}

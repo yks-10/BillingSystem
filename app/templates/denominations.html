@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Denominations - Billing System{% endblock %}
+
+{% block content %}
+<h2>Denominations Management</h2>
+
+<div id="error-message" class="alert alert-error" style="display: none;"></div>
+<div id="success-message" class="alert alert-success" style="display: none;"></div>
+
+<div style="margin-bottom: 30px;">
+    <p style="color: #666;">Manage the available denominations in the shop. These values will be used for calculating change.</p>
+    <button type="button" onclick="window.location.href='/'" class="secondary">Back to Billing</button>
+</div>
+
+<h3>Available Denominations</h3>
+<div id="denominations-list">
+    <p>Loading denominations...</p>
+</div>
+
+<div style="margin-top: 30px;">
+    <button type="button" onclick="saveAll()">Save All Changes</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let denominations = [];
+    
+    async function loadDenominations() {
+        try {
+            const response = await fetch('/api/denominations/');
+            if (response.ok) {
+                denominations = await response.json();
+                displayDenominations();
+            }
+        } catch (error) {
+            console.error('Error loading denominations:', error);
+            document.getElementById('denominations-list').innerHTML = '<p>Error loading denominations.</p>';
+        }
+    }
+    
+    function displayDenominations() {
+        const container = document.getElementById('denominations-list');
+        
+        if (denominations.length === 0) {
+            container.innerHTML = `
+                <p>No denominations found. Click below to initialize with default values.</p>
+                <button onclick="initializeDefaults()">Initialize Default Denominations</button>
+            `;
+            return;
+        }
+        
+        let html = '<table><thead><tr>';
+        html += '<th>Denomination Value (₹)</th>';
+        html += '<th>Available Count</th>';
+        html += '<th>Total Amount (₹)</th>';
+        html += '</tr></thead><tbody>';
+        
+        denominations.forEach(denom => {
+            const total = denom.value * denom.available_count;
+            html += '<tr>';
+            html += `<td>₹${denom.value}</td>`;
+            html += `<td><input type="number" id="denom_${denom.value}" value="${denom.available_count}" min="0" style="width: 150px;"></td>`;
+            html += `<td>₹${total.toFixed(2)}</td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        
+        // Calculate total
+        const grandTotal = denominations.reduce((sum, d) => sum + (d.value * d.available_count), 0);
+        html += `<p style="margin-top: 20px; font-size: 18px; font-weight: bold;">Total Cash in Shop: ₹${grandTotal.toFixed(2)}</p>`;
+        
+        container.innerHTML = html;
+    }
+    
+    async function initializeDefaults() {
+        const defaultDenoms = [
+            { value: 2000, available_count: 10 },
+            { value: 500, available_count: 20 },
+            { value: 200, available_count: 20 },
+            { value: 100, available_count: 30 },
+            { value: 50, available_count: 40 },
+            { value: 20, available_count: 50 },
+            { value: 10, available_count: 100 },
+            { value: 5, available_count: 100 },
+            { value: 2, available_count: 50 },
+            { value: 1, available_count: 100 }
+        ];
+        
+        for (const denom of defaultDenoms) {
+            try {
+                await fetch('/api/denominations/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(denom)
+                });
+            } catch (error) {
+                console.error('Error creating denomination:', error);
+            }
+        }
+        
+        showSuccess('Default denominations initialized!');
+        loadDenominations();
+    }
+    
+    async function saveAll() {
+        let successCount = 0;
+        let errorCount = 0;
+        
+        for (const denom of denominations) {
+            const input = document.getElementById(`denom_${denom.value}`);
+            if (!input) continue;
+            
+            const newCount = parseInt(input.value);
+            
+            try {
+                const response = await fetch(`/api/denominations/value/${denom.value}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ available_count: newCount })
+                });
+                
+                if (response.ok) {
+                    successCount++;
+                } else {
+                    errorCount++;
+                }
+            } catch (error) {
+                errorCount++;
+            }
+        }
+        
+        if (errorCount === 0) {
+            showSuccess(`All ${successCount} denominations updated successfully!`);
+        } else {
+            showError(`Updated ${successCount} denominations, ${errorCount} failed.`);
+        }
+        
+        loadDenominations();
+    }
+    
+    function showSuccess(message) {
+        const successDiv = document.getElementById('success-message');
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.style.display = 'none';
+        successDiv.textContent = message;
+        successDiv.style.display = 'block';
+        setTimeout(() => successDiv.style.display = 'none', 3000);
+    }
+    
+    function showError(message) {
+        const successDiv = document.getElementById('success-message');
+        const errorDiv = document.getElementById('error-message');
+        successDiv.style.display = 'none';
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+    }
+    
+    // Load denominations on page load
+    loadDenominations();
+</script>
+{% endblock %}

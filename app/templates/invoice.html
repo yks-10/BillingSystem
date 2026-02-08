@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Invoice - Billing System{% endblock %}
+
+{% block content %}
+<div style="max-width: 900px; margin: 0 auto;">
+    <div style="text-align: center; background-color: #4CAF50; color: white; padding: 30px; border-radius: 8px 8px 0 0;">
+        <h1>INVOICE</h1>
+        <p style="font-size: 18px; margin-top: 10px;">Order ID: #<span id="order-id"></span></p>
+    </div>
+    
+    <div style="padding: 30px; border: 1px solid #ddd; border-top: none; border-radius: 0 0 8px 8px;">
+        <div style="margin-bottom: 30px;">
+            <p><strong>Customer Email:</strong> <span id="customer-email"></span></p>
+            <p><strong>Date:</strong> <span id="order-date"></span></p>
+        </div>
+        
+        <h2>Order Items</h2>
+        <table id="items-table">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th style="text-align: center;">Quantity</th>
+                    <th style="text-align: right;">Unit Price</th>
+                    <th style="text-align: right;">Tax</th>
+                    <th style="text-align: right;">Total</th>
+                </tr>
+            </thead>
+            <tbody id="items-body">
+            </tbody>
+        </table>
+        
+        <div style="background-color: #f9f9f9; padding: 20px; border-radius: 4px; margin: 30px 0;">
+            <table style="width: 500px; margin-left: auto; border: none;">
+                <tr style="background: none;">
+                    <td style="border: none; padding: 8px 0;"><strong>Subtotal (without tax):</strong></td>
+                    <td style="border: none; padding: 8px 0; text-align: right;">₹<span id="total-without-tax"></span></td>
+                </tr>
+                <tr style="background: none;">
+                    <td style="border: none; padding: 8px 0;"><strong>Total Tax:</strong></td>
+                    <td style="border: none; padding: 8px 0; text-align: right;">₹<span id="total-tax"></span></td>
+                </tr>
+                <tr style="background-color: #e0e0e0;">
+                    <td style="border: none; padding: 12px 0;"><strong style="font-size: 18px;">Grand Total:</strong></td>
+                    <td style="border: none; padding: 12px 0; text-align: right;"><strong style="font-size: 18px;">₹<span id="total-amount"></span></strong></td>
+                </tr>
+                <tr style="background: none;">
+                    <td style="border: none; padding: 8px 0;"><strong>Paid Amount:</strong></td>
+                    <td style="border: none; padding: 8px 0; text-align: right;">₹<span id="paid-amount"></span></td>
+                </tr>
+                <tr style="background-color: #d4edda;">
+                    <td style="border: none; padding: 12px 0;"><strong style="font-size: 18px;">Balance/Change:</strong></td>
+                    <td style="border: none; padding: 12px 0; text-align: right;"><strong style="font-size: 18px; color: #155724;">₹<span id="balance-amount"></span></strong></td>
+                </tr>
+            </table>
+        </div>
+        
+        <div id="denominations-section" style="display: none;">
+            <h2>Change Denominations</h2>
+            <table style="width: 500px;">
+                <thead>
+                    <tr>
+                        <th>Denomination</th>
+                        <th style="text-align: center;">Count</th>
+                        <th style="text-align: right;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody id="denominations-body">
+                </tbody>
+            </table>
+        </div>
+        
+        <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 2px solid #ddd;">
+            <p style="color: #155724; font-weight: bold; font-size: 16px;">Thank you for your business!</p>
+            <p style="color: #666; margin-top: 10px;">An invoice has been sent to your email address.</p>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px;">
+            <button onclick="window.print()">Print Invoice</button>
+            <button onclick="window.location.href='/billing'" class="secondary">Create New Bill</button>
+            <button onclick="window.location.href='/orders'" class="secondary">View Order History</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Get order ID from URL
+    const pathParts = window.location.pathname.split('/');
+    const orderId = pathParts[pathParts.length - 1];
+    
+    async function loadInvoice() {
+        try {
+            const response = await fetch(`/api/orders/${orderId}`);
+            if (!response.ok) {
+                throw new Error('Order not found');
+            }
+            
+            const order = await response.json();
+            
+            // Populate order details
+            document.getElementById('order-id').textContent = order.id;
+            document.getElementById('customer-email').textContent = order.customer_email;
+            document.getElementById('order-date').textContent = new Date(order.created_at).toLocaleString();
+            
+            // Populate items
+            const itemsBody = document.getElementById('items-body');
+            order.items.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.product_name}</td>
+                    <td style="text-align: center;">${item.quantity}</td>
+                    <td style="text-align: right;">₹${item.unit_price.toFixed(2)}</td>
+                    <td style="text-align: right;">₹${item.tax_amount.toFixed(2)}</td>
+                    <td style="text-align: right;">₹${item.total_price.toFixed(2)}</td>
+                `;
+                itemsBody.appendChild(row);
+            });
+            
+            // Populate totals
+            document.getElementById('total-without-tax').textContent = order.total_without_tax.toFixed(2);
+            document.getElementById('total-tax').textContent = order.total_tax.toFixed(2);
+            document.getElementById('total-amount').textContent = order.total_amount.toFixed(2);
+            document.getElementById('paid-amount').textContent = order.paid_amount.toFixed(2);
+            document.getElementById('balance-amount').textContent = order.balance_amount.toFixed(2);
+            
+            // Note: Denominations are not stored in the order, so we can't display them here
+            // In a real implementation, you'd need to store denomination breakdown in the order
+            
+        } catch (error) {
+            alert('Error loading invoice: ' + error.message);
+            window.location.href = '/orders';
+        }
+    }
+    
+    loadInvoice();
+</script>
+{% endblock %}
