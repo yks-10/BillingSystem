@@ -98,8 +98,8 @@ def seed_products():
             ),
         ]
         
-        db.add_all(products)
-        db.commit()
+        session.add_all(products)
+        session.commit()
         print(f"Successfully seeded {len(products)} products!")
         
         # Display seeded products
@@ -140,8 +140,8 @@ def seed_denominations():
             Denomination(value=1, available_count=100),
         ]
         
-        db.add_all(denominations)
-        db.commit()
+        session.add_all(denominations)
+        session.commit()
         print(f"\nSuccessfully seeded {len(denominations)} denominations!")
         
         # Display seeded denominations
